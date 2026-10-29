@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: br.com.example.activation.ActivationRequestControllerIntegrationTest
+-------------------------------------------------------------------------------
+Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 23.74 s -- in br.com.example.activation.ActivationRequestControllerIntegrationTest

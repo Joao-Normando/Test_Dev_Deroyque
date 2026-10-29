@@ -1,0 +1,4 @@
+br/com/example/activation/service/ActivationRequestServiceTest.class
+br/com/example/activation/ActivationRequestControllerIntegrationTest.class
+br/com/example/activation/TestJwtConfig.class
+br/com/example/activation/domain/ActivationRequestTest.class
