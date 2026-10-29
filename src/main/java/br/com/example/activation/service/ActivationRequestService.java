@@ -51,13 +51,13 @@ public class ActivationRequestService {
     }
 
     private ActivationRequest activateRequest(UUID requestId) {
-        var request = stateService.markProcessing(requestId);
+        var request = stateService.changeStatus(requestId, ActivationStatus.PROCESSING);
         try {
             providerClient.activate(
                     request.getExternalId(), request.getCustomerId(), request.getProductCode());
-            return stateService.markCompleted(requestId);
+            return stateService.changeStatus(requestId, ActivationStatus.COMPLETED);
         } catch (ProviderActivationException e) {
-            return stateService.markFailed(requestId);
+            return stateService.changeStatus(requestId, ActivationStatus.FAILED);
         }
     }
 

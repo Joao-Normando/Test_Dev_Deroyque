@@ -8,14 +8,15 @@ class ActivationRequestTest {
     @Test
     void validTransition() {
         var r = ActivationRequest.create("E", "C", "P", "owner");
-        r.markProcessing();
-        r.markCompleted();
+        r.changeStatusTo(ActivationStatus.PROCESSING);
+        r.changeStatusTo(ActivationStatus.COMPLETED);
         assertThat(r.getStatus()).isEqualTo(ActivationStatus.COMPLETED);
     }
 
     @Test
     void rejectsInvalidTransition() {
         var r = ActivationRequest.create("E", "C", "P", "owner");
-        assertThatThrownBy(r::markCompleted).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> r.changeStatusTo(ActivationStatus.COMPLETED))
+                .isInstanceOf(IllegalStateException.class);
     }
 }

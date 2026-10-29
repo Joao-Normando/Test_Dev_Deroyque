@@ -52,26 +52,17 @@ public class ActivationRequest {
         return new ActivationRequest(e, c, p, owner);
     }
 
-    public void markProcessing() {
-        require(ActivationStatus.PENDING);
-        status = ActivationStatus.PROCESSING;
+    public void changeStatusTo(ActivationStatus nextStatus) {
+        boolean validTransition = switch (nextStatus) {
+            case PROCESSING -> status == ActivationStatus.PENDING;
+            case COMPLETED, FAILED -> status == ActivationStatus.PROCESSING;
+            case PENDING -> false;
+        };
+        if (!validTransition) {
+            throw new IllegalStateException("Invalid activation status transition");
+        }
+        status = nextStatus;
         touch();
-    }
-
-    public void markCompleted() {
-        require(ActivationStatus.PROCESSING);
-        status = ActivationStatus.COMPLETED;
-        touch();
-    }
-
-    public void markFailed() {
-        require(ActivationStatus.PROCESSING);
-        status = ActivationStatus.FAILED;
-        touch();
-    }
-
-    private void require(ActivationStatus expected) {
-        if (status != expected) throw new IllegalStateException("Invalid activation status transition");
     }
 
     private void touch() {

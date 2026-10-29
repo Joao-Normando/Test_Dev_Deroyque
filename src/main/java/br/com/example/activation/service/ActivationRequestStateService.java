@@ -1,6 +1,7 @@
 package br.com.example.activation.service;
 
 import br.com.example.activation.domain.ActivationRequest;
+import br.com.example.activation.domain.ActivationStatus;
 import br.com.example.activation.persistence.ActivationRequestRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,23 +17,9 @@ public class ActivationRequestStateService {
     }
 
     @Transactional
-    public ActivationRequest markProcessing(UUID id) {
+    public ActivationRequest changeStatus(UUID id, ActivationStatus status) {
         var request = findById(id);
-        request.markProcessing();
-        return repository.saveAndFlush(request);
-    }
-
-    @Transactional
-    public ActivationRequest markCompleted(UUID id) {
-        var request = findById(id);
-        request.markCompleted();
-        return repository.saveAndFlush(request);
-    }
-
-    @Transactional
-    public ActivationRequest markFailed(UUID id) {
-        var request = findById(id);
-        request.markFailed();
+        request.changeStatusTo(status);
         return repository.saveAndFlush(request);
     }
 
