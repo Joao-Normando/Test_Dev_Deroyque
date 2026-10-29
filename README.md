@@ -330,4 +330,4 @@ Identidade de produção: a validação local usa HS256 e uma chave de desenvolv
 
 ## Uso de IA
 
-Ferramentas de IA foram usadas como apoio à estrutura inicial, implementação de trechos, testes e documentação. As decisões e os resultados devem ser revisados pelo responsável pelo projeto.
+Ferramentas de IA foram usadas como apoio à estrutura inicial, implementação de trechos, testes e documentação. As decisões e os resultados foram revisados pelo autor.
