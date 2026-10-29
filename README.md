@@ -70,19 +70,8 @@ O Flyway cria/atualiza o schema ao iniciar a aplicação. O mapeamento local do 
 ### Gerar um token local
 
 Todos os endpoints de negócio exigem JWT. Em um segundo terminal PowerShell, na raiz do repositório, gere um token local:
-
-```powershell
-$token = & .\scripts\New-DevelopmentJwt.ps1
-```
-
-O script cria um token HS256 válido por 60 minutos, com `requests:read`, `requests:write` e `metrics:read`. Ele usa a chave local configurada no Compose. Essa chave é somente para desenvolvimento e não deve ser usada em produção.
-
 Se o PowerShell bloquear scripts neste terminal, permita scripts locais apenas na sessão atual e tente novamente:
 
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
-$token = & .\scripts\New-DevelopmentJwt.ps1
-```
 
 Essa configuração termina ao fechar o terminal; não altera a política permanente do computador. Em um computador gerenciado, siga a política da organização.
 
