@@ -7,7 +7,12 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "activation_requests", uniqueConstraints = @UniqueConstraint(name = "uk_activation_external_id", columnNames = "external_id"),
-        indexes = {@Index(name = "idx_activation_customer", columnList = "customer_id"), @Index(name = "idx_activation_status_created", columnList = "status, created_at")})
+        indexes = {
+                @Index(name = "idx_activation_customer", columnList = "customer_id"),
+                @Index(name = "idx_activation_status_created", columnList = "status, created_at"),
+                @Index(name = "idx_activation_owner_customer", columnList = "owner_subject, customer_id"),
+                @Index(name = "idx_activation_owner_status_created", columnList = "owner_subject, status, created_at")
+        })
 public class ActivationRequest {
     @Id
     private UUID id;
@@ -17,6 +22,8 @@ public class ActivationRequest {
     private String customerId;
     @Column(name = "product_code", nullable = false, updatable = false, length = 64)
     private String productCode;
+    @Column(name = "owner_subject", nullable = false, updatable = false, length = 255)
+    private String ownerSubject;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private ActivationStatus status;
@@ -30,18 +37,19 @@ public class ActivationRequest {
     protected ActivationRequest() {
     }
 
-    private ActivationRequest(String e, String c, String p) {
+    private ActivationRequest(String e, String c, String p, String owner) {
         id = UUID.randomUUID();
         externalId = e;
         customerId = c;
         productCode = p;
+        ownerSubject = owner;
         status = ActivationStatus.PENDING;
         createdAt = Instant.now();
         updatedAt = createdAt;
     }
 
-    public static ActivationRequest create(String e, String c, String p) {
-        return new ActivationRequest(e, c, p);
+    public static ActivationRequest create(String e, String c, String p, String owner) {
+        return new ActivationRequest(e, c, p, owner);
     }
 
     public void markProcessing() {
@@ -84,6 +92,10 @@ public class ActivationRequest {
 
     public String getProductCode() {
         return productCode;
+    }
+
+    public String getOwnerSubject() {
+        return ownerSubject;
     }
 
     public ActivationStatus getStatus() {

@@ -1,4 +1,4 @@
-package br.com.example.activation.api;
+package br.com.example.activation.controller;
 
 import br.com.example.activation.service.*;
 import jakarta.servlet.http.HttpServletRequest;

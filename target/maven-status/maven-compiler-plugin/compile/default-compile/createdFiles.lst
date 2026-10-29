@@ -1,0 +1,5 @@
+br/com/example/activation/controller/ActivationRequestController.class
+br/com/example/activation/controller/CreateActivationRequest.class
+br/com/example/activation/controller/ApiExceptionHandler.class
+br/com/example/activation/controller/ActivationRequestResponse.class
+br/com/example/activation/service/ActivationRequestStateService.class

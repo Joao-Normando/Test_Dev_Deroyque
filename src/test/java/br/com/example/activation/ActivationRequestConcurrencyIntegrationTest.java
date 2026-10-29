@@ -1,6 +1,5 @@
 package br.com.example.activation;
 
-import br.com.example.activation.api.CreateActivationRequest;
 import br.com.example.activation.domain.ActivationRequest;
 import br.com.example.activation.integration.ProviderActivationClient;
 import br.com.example.activation.persistence.ActivationRequestRepository;
@@ -96,8 +95,7 @@ class ActivationRequestConcurrencyIntegrationTest {
                     if (!start.await(10, TimeUnit.SECONDS)) {
                         throw new IllegalStateException("Timed out waiting to start concurrent requests");
                     }
-                    return service.create(
-                            new CreateActivationRequest(externalId, "CUST-1", "NET-1"));
+                    return service.create(externalId, "CUST-1", "NET-1", "concurrency-test");
                 }));
             }
 

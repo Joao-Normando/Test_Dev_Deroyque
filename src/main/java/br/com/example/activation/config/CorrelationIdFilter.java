@@ -14,12 +14,12 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain) throws ServletException, IOException {
         String id = req.getHeader("X-Correlation-Id");
         if (id == null || !id.matches("[A-Za-z0-9._-]{1,100}")) id = UUID.randomUUID().toString();
-        MDC.put("traceId", id);
+        MDC.put("correlationId", id);
         res.setHeader("X-Correlation-Id", id);
         try {
             chain.doFilter(req, res);
         } finally {
-            MDC.remove("traceId");
+            MDC.remove("correlationId");
         }
     }
 }

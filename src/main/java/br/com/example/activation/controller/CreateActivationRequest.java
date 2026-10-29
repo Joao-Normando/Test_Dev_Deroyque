@@ -1,4 +1,4 @@
-package br.com.example.activation.api;
+package br.com.example.activation.controller;
 
 import jakarta.validation.constraints.*;
 

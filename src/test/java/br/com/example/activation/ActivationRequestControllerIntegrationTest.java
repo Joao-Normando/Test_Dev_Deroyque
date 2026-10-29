@@ -10,6 +10,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.*;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
@@ -42,8 +43,16 @@ class ActivationRequestControllerIntegrationTest {
     }
 
     String token(String scope) {
-        var c = JwtClaimsSet.builder().issuer("https://identity.example.com").audience(List.of("activation-service")).issuedAt(Instant.now().minusSeconds(2)).expiresAt(Instant.now().plusSeconds(300)).subject("client").claim("scope", scope).build();
-        return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), c)).getTokenValue();
+        return token(scope, "client");
+    }
+
+    String token(String scope, String subject) {
+        var claims = JwtClaimsSet.builder().issuer("https://identity.example.com").audience(List.of("activation-service"))
+                .issuedAt(Instant.now().minusSeconds(2)).expiresAt(Instant.now().plusSeconds(300))
+                .subject(subject).claim("scope", scope).build();
+        return encoder.encode(
+                JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
+                .getTokenValue();
     }
 
     String body = "{\"externalId\":\"EXT-1\",\"customerId\":\"CUST-1\",\"productCode\":\"NET-1\"}";
@@ -60,6 +69,11 @@ class ActivationRequestControllerIntegrationTest {
 
     @Test
     void createsAndCompletes() throws Exception {
+        doAnswer(invocation -> {
+            org.assertj.core.api.Assertions.assertThat(
+                    TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return null;
+        }).when(provider).activate("EXT-1", "CUST-1", "NET-1");
         mvc.perform(post("/api/v1/requests").header("Authorization", "Bearer " + token("requests:write")).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated()).andExpect(header().exists("Location")).andExpect(jsonPath("$.status").value("COMPLETED"));
         verify(provider).activate("EXT-1", "CUST-1", "NET-1");
     }
@@ -93,6 +107,45 @@ class ActivationRequestControllerIntegrationTest {
     }
 
     @Test
+    void consumersCanOnlyReadTheirOwnRequests() throws Exception {
+        mvc.perform(post("/api/v1/requests")
+                        .header("Authorization", "Bearer " + token("requests:write", "consumer-a"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+
+        var request = repo.findByExternalId("EXT-1").orElseThrow();
+        mvc.perform(get("/api/v1/requests/" + request.getId())
+                        .header("Authorization", "Bearer " + token("requests:read", "consumer-b")))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/requests")
+                        .header("Authorization", "Bearer " + token("requests:read", "consumer-b")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+        mvc.perform(get("/api/v1/requests/" + request.getId())
+                        .header("Authorization", "Bearer " + token("requests:read", "consumer-a")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void anotherConsumerCannotReuseAnExistingExternalId() throws Exception {
+        mvc.perform(post("/api/v1/requests")
+                        .header("Authorization", "Bearer " + token("requests:write", "consumer-a"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/v1/requests")
+                        .header("Authorization", "Bearer " + token("requests:write", "consumer-b"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(
+                        "externalId já utilizado por uma solicitação incompatível."));
+        verify(provider, times(1)).activate(anyString(), anyString(), anyString());
+    }
+
+    @Test
     void getsExistingRequest() throws Exception {
         mvc.perform(post("/api/v1/requests").header("Authorization", "Bearer " + token("requests:write")).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated());
         var request = repo.findByExternalId("EXT-1").orElseThrow();
@@ -117,5 +170,21 @@ class ActivationRequestControllerIntegrationTest {
         mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andExpect(jsonPath("$.components.securitySchemes.bearerAuth.type").value("http"))
                 .andExpect(jsonPath("$.paths['/api/v1/requests'].post.security[0].bearerAuth").exists());
         mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk());
+    }
+
+    @Test
+    void healthProbesArePublicAndPrometheusRequiresMetricsScope() throws Exception {
+        mvc.perform(get("/actuator/health/liveness"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+        mvc.perform(get("/actuator/health/readiness"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+        mvc.perform(get("/actuator/prometheus"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/actuator/prometheus")
+                        .header("Authorization", "Bearer " + token("metrics:read")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("http_server_requests")));
     }
 }

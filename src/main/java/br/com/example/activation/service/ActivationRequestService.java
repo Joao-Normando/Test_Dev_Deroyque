@@ -1,6 +1,5 @@
 package br.com.example.activation.service;
 
-import br.com.example.activation.api.CreateActivationRequest;
 import br.com.example.activation.domain.*;
 import br.com.example.activation.integration.*;
 import br.com.example.activation.persistence.ActivationRequestRepository;
@@ -15,59 +14,85 @@ import java.util.UUID;
 public class ActivationRequestService {
     private final ActivationRequestRepository repo;
     private final ProviderActivationClient provider;
+    private final ActivationRequestStateService stateService;
 
-    public ActivationRequestService(ActivationRequestRepository r, ProviderActivationClient p) {
+    public ActivationRequestService(
+            ActivationRequestRepository r,
+            ProviderActivationClient p,
+            ActivationRequestStateService stateService) {
         repo = r;
         provider = p;
+        this.stateService = stateService;
     }
 
-    public ActivationRequest create(CreateActivationRequest in) {
-        var old = repo.findByExternalId(in.externalId());
-        if (old.isPresent()) return same(old.get(), in) ? old.get() : conflict();
+    public ActivationRequest create(
+            String externalId, String customerId, String productCode, String ownerSubject) {
+        var old = repo.findByExternalId(externalId);
+        if (old.isPresent()) {
+            return same(old.get(), customerId, productCode, ownerSubject) ? old.get() : conflict();
+        }
+
         ActivationRequest saved;
         try {
-            saved = repo.saveAndFlush(ActivationRequest.create(in.externalId(), in.customerId(), in.productCode()));
+            saved = repo.saveAndFlush(
+                    ActivationRequest.create(externalId, customerId, productCode, ownerSubject));
         } catch (DataIntegrityViolationException e) {
-            var concurrent = repo.findByExternalId(in.externalId());
-            if (concurrent.isPresent() && same(concurrent.get(), in)) return concurrent.get();
-            if (concurrent.isPresent()) return conflict();
+            var concurrent = repo.findByExternalId(externalId);
+            if (concurrent.isPresent()
+                    && same(concurrent.get(), customerId, productCode, ownerSubject)) {
+                return concurrent.get();
+            }
+            if (concurrent.isPresent()) {
+                return conflict();
+            }
             throw e;
         }
-        return process(saved.getId());
+
+        return activate(saved.getId());
     }
 
-    @Transactional
-    public ActivationRequest process(UUID id) {
-        var r = repo.findById(id).orElseThrow(() -> new ActivationRequestNotFoundException(id));
-        r.markProcessing();
-        r = repo.saveAndFlush(r);
+    private ActivationRequest activate(UUID id) {
+        var request = stateService.markProcessing(id);
         try {
-            provider.activate(r.getExternalId(), r.getCustomerId(), r.getProductCode());
-            r.markCompleted();
+            provider.activate(
+                    request.getExternalId(), request.getCustomerId(), request.getProductCode());
+            return stateService.markCompleted(id);
         } catch (ProviderActivationException e) {
-            r.markFailed();
+            return stateService.markFailed(id);
         }
-        return repo.save(r);
     }
 
     @Transactional(readOnly = true)
-    public ActivationRequest get(UUID id) {
-        return repo.findById(id).orElseThrow(() -> new ActivationRequestNotFoundException(id));
+    public ActivationRequest get(UUID id, String ownerSubject) {
+        return repo.findByIdAndOwnerSubject(id, ownerSubject)
+                .orElseThrow(() -> new ActivationRequestNotFoundException(id));
     }
 
     @Transactional(readOnly = true)
-    public Page<ActivationRequest> list(ActivationStatus s, String c, Pageable p) {
-        if (s != null && c != null) return repo.findByStatusAndCustomerId(s, c, p);
-        if (s != null) return repo.findByStatus(s, p);
-        if (c != null) return repo.findByCustomerId(c, p);
-        return repo.findAll(p);
+    public Page<ActivationRequest> list(
+            String ownerSubject, ActivationStatus status, String customerId, Pageable pageable) {
+        if (status != null && customerId != null) {
+            return repo.findByOwnerSubjectAndStatusAndCustomerId(
+                    ownerSubject, status, customerId, pageable);
+        }
+        if (status != null) {
+            return repo.findByOwnerSubjectAndStatus(ownerSubject, status, pageable);
+        }
+        if (customerId != null) {
+            return repo.findByOwnerSubjectAndCustomerId(ownerSubject, customerId, pageable);
+        }
+        return repo.findByOwnerSubject(ownerSubject, pageable);
     }
 
-    private boolean same(ActivationRequest r, CreateActivationRequest i) {
-        return r.getCustomerId().equals(i.customerId()) && r.getProductCode().equals(i.productCode());
+    private boolean same(
+            ActivationRequest request, String customerId, String productCode, String ownerSubject) {
+        return request.getOwnerSubject().equals(ownerSubject)
+                && request.getCustomerId().equals(customerId)
+                && request.getProductCode().equals(productCode);
     }
 
     private ActivationRequest conflict() {
-        throw new DuplicateExternalIdException("externalId já utilizado com conteúdo diferente.");
+        throw new DuplicateExternalIdException(
+                "externalId já utilizado por uma solicitação incompatível.");
     }
 }

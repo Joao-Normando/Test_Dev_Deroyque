@@ -9,9 +9,16 @@ import java.util.*;
 public interface ActivationRequestRepository extends JpaRepository<ActivationRequest, UUID> {
     Optional<ActivationRequest> findByExternalId(String externalId);
 
-    Page<ActivationRequest> findByStatusAndCustomerId(ActivationStatus status, String customerId, Pageable pageable);
+    Optional<ActivationRequest> findByIdAndOwnerSubject(UUID id, String ownerSubject);
 
-    Page<ActivationRequest> findByStatus(ActivationStatus status, Pageable pageable);
+    Page<ActivationRequest> findByOwnerSubjectAndStatusAndCustomerId(
+            String ownerSubject, ActivationStatus status, String customerId, Pageable pageable);
 
-    Page<ActivationRequest> findByCustomerId(String customerId, Pageable pageable);
+    Page<ActivationRequest> findByOwnerSubjectAndStatus(
+            String ownerSubject, ActivationStatus status, Pageable pageable);
+
+    Page<ActivationRequest> findByOwnerSubjectAndCustomerId(
+            String ownerSubject, String customerId, Pageable pageable);
+
+    Page<ActivationRequest> findByOwnerSubject(String ownerSubject, Pageable pageable);
 }

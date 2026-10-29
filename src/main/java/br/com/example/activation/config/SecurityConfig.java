@@ -17,7 +17,17 @@ import javax.crypto.spec.SecretKeySpec;
 public class SecurityConfig {
     @Bean
     SecurityFilterChain security(HttpSecurity http) throws Exception {
-        return http.csrf(c -> c.disable()).authorizeHttpRequests(a -> a.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll().anyRequest().authenticated()).oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(jwtConverter()))).build();
+        return http.csrf(c -> c.disable())
+                .authorizeHttpRequests(a -> a
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**")
+                        .permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**")
+                        .permitAll()
+                        .requestMatchers("/actuator/prometheus")
+                        .hasAuthority("SCOPE_metrics:read")
+                        .anyRequest().authenticated())
+                .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(jwtConverter())))
+                .build();
     }
 
     @Bean
@@ -35,10 +45,11 @@ public class SecurityConfig {
         var d = NimbusJwtDecoder.withSecretKey(new SecretKeySpec(secret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256")).macAlgorithm(MacAlgorithm.HS256).build();
         var issuerV = JwtValidators.createDefaultWithIssuer(issuer);
         OAuth2TokenValidator<Jwt> aud = jwt -> jwt.getAudience().contains(audience) ? OAuth2TokenValidatorResult.success() : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "Invalid audience", null));
-        d.setJwtValidator(jwt -> {
-            var v = issuerV.validate(jwt);
-            return v.hasErrors() ? v : aud.validate(jwt);
-        });
+        OAuth2TokenValidator<Jwt> subject = jwt -> jwt.getSubject() != null && !jwt.getSubject().isBlank()
+                ? OAuth2TokenValidatorResult.success()
+                : OAuth2TokenValidatorResult.failure(
+                        new OAuth2Error("invalid_token", "Missing subject", null));
+        d.setJwtValidator(new DelegatingOAuth2TokenValidator<>(issuerV, aud, subject));
         return d;
     }
 }

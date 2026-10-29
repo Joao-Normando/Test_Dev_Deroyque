@@ -12,6 +12,12 @@ services:
     image: wiremock/wiremock:3.12.1
     ports: ["8090:8080"]
     volumes: ["./wiremock:/home/wiremock"]
+  jaeger:
+    image: jaegertracing/all-in-one:1.70.0
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
   app:
     build: .
     environment:
@@ -20,7 +26,10 @@ services:
       DB_PASSWORD: activation
       PROVIDER_BASE_URL: http://provider-mock:8080
       JWT_SECRET: local-development-secret-key-change-this-32bytes-min
+      OTEL_SERVICE_NAME: activation-service
+      OTEL_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
     ports: ["8080:8080"]
     depends_on:
       postgres: { condition: service_healthy }
       provider-mock: { condition: service_started }
+      jaeger: { condition: service_started }

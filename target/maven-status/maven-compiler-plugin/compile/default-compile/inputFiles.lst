@@ -1,12 +1,12 @@
 /workspace/src/main/java/br/com/example/activation/ActivationServiceApplication.java
-/workspace/src/main/java/br/com/example/activation/api/ActivationRequestController.java
-/workspace/src/main/java/br/com/example/activation/api/ActivationRequestResponse.java
-/workspace/src/main/java/br/com/example/activation/api/ApiExceptionHandler.java
-/workspace/src/main/java/br/com/example/activation/api/CreateActivationRequest.java
+/workspace/src/main/java/br/com/example/activation/config/ApiConfig.java
 /workspace/src/main/java/br/com/example/activation/config/CorrelationIdFilter.java
 /workspace/src/main/java/br/com/example/activation/config/HttpClientConfig.java
-/workspace/src/main/java/br/com/example/activation/config/OpenApiConfig.java
 /workspace/src/main/java/br/com/example/activation/config/SecurityConfig.java
+/workspace/src/main/java/br/com/example/activation/controller/ActivationRequestController.java
+/workspace/src/main/java/br/com/example/activation/controller/ActivationRequestResponse.java
+/workspace/src/main/java/br/com/example/activation/controller/ApiExceptionHandler.java
+/workspace/src/main/java/br/com/example/activation/controller/CreateActivationRequest.java
 /workspace/src/main/java/br/com/example/activation/domain/ActivationRequest.java
 /workspace/src/main/java/br/com/example/activation/domain/ActivationStatus.java
 /workspace/src/main/java/br/com/example/activation/integration/HttpProviderActivationClient.java
@@ -15,4 +15,5 @@
 /workspace/src/main/java/br/com/example/activation/persistence/ActivationRequestRepository.java
 /workspace/src/main/java/br/com/example/activation/service/ActivationRequestNotFoundException.java
 /workspace/src/main/java/br/com/example/activation/service/ActivationRequestService.java
+/workspace/src/main/java/br/com/example/activation/service/ActivationRequestStateService.java
 /workspace/src/main/java/br/com/example/activation/service/DuplicateExternalIdException.java

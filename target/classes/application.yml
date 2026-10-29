@@ -12,8 +12,31 @@ provider:
   base-url: ${PROVIDER_BASE_URL:http://localhost:8090}
   connect-timeout: ${PROVIDER_CONNECT_TIMEOUT:2s}
   read-timeout: ${PROVIDER_READ_TIMEOUT:5s}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+      group:
+        readiness:
+          include: readinessState,db
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
 security.jwt:
   secret: ${JWT_SECRET:local-development-secret-key-change-this-32bytes-min}
   issuer: ${JWT_ISSUER:https://identity.example.com}
   audience: ${JWT_AUDIENCE:activation-service}
-logging.pattern.level: "%5p [traceId:%X{traceId:-}]"
+logging.pattern.level: "%5p [correlationId:%X{correlationId:-} traceId:%X{traceId:-}]"
