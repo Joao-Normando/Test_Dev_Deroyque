@@ -64,7 +64,27 @@ Flyway cria o schema. Há índice em `customer_id` e composto em `(status, creat
 
 ## Testes
 
-Testes unitários cobrem transições e regra de conflito; testes MVC de integração cobrem criação, validação, JSON malformado, duplicidade com mesmo conteúdo e conteúdo divergente, consulta existente/inexistente, falha do provedor, documentação Swagger e segurança 401/403. Usam H2 para execução local rápida. Testcontainers/PostgreSQL real para concorrência, timeout ponta a ponta, isolamento BOLA e teste concorrente de lock otimista ainda não foram implementados.
+Testes unitários cobrem transições e regra de conflito; testes MVC de integração cobrem criação, validação, JSON malformado, duplicidade com mesmo conteúdo e conteúdo divergente, consulta existente/inexistente, falha do provedor, documentação Swagger e segurança 401/403, usando H2. O teste `ActivationRequestConcurrencyIntegrationTest` usa Testcontainers com PostgreSQL real para validar que requisições simultâneas com o mesmo `externalId` criam um único registro e acionam o provedor uma única vez. Docker precisa estar em execução para esse teste.
+
+Para executar somente o teste concorrente:
+
+```bash
+mvn -Dtest=ActivationRequestConcurrencyIntegrationTest test
+```
+
+Sem `TEST_POSTGRES_URL`, o teste inicia um PostgreSQL descartável via Testcontainers (Docker deve estar ativo). Como alternativa, configure `TEST_POSTGRES_URL`, `TEST_POSTGRES_USERNAME` e `TEST_POSTGRES_PASSWORD` para apontar a um PostgreSQL de teste já iniciado. No PowerShell, com o PostgreSQL do Compose disponível:
+
+```powershell
+docker compose up -d postgres
+$env:TEST_POSTGRES_URL = "jdbc:postgresql://localhost:5432/activation"
+$env:TEST_POSTGRES_USERNAME = "activation"
+$env:TEST_POSTGRES_PASSWORD = "activation"
+mvn -Dtest=ActivationRequestConcurrencyIntegrationTest test
+```
+
+O teste usa um `externalId` aleatório e não apaga registros do banco configurado.
+
+Timeout ponta a ponta, isolamento BOLA e teste concorrente de lock otimista ainda não foram implementados.
 
 ## Uso de IA
 

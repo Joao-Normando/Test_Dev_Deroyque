@@ -1,3 +1,4 @@
+/workspace/src/test/java/br/com/example/activation/ActivationRequestConcurrencyIntegrationTest.java
 /workspace/src/test/java/br/com/example/activation/ActivationRequestControllerIntegrationTest.java
 /workspace/src/test/java/br/com/example/activation/TestJwtConfig.java
 /workspace/src/test/java/br/com/example/activation/domain/ActivationRequestTest.java
