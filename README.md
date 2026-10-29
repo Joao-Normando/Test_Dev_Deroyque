@@ -35,7 +35,7 @@ O estado inicial é `PENDING`; durante o processamento ele passa por `PROCESSING
 | `src/test` | Testes unitários e de integração |
 | `wiremock` | Mapeamentos do provedor simulado |
 
-## Executar a partir de um clone
+## Como Executar a partir de um clone
 
 ### Pré-requisitos
 
@@ -277,19 +277,6 @@ O Dockerfile usa uma etapa Maven para compilar e uma imagem JRE para executar o 
 
 O filtro aceita ou gera `X-Correlation-Id`, devolve o identificador na resposta e o inclui no MDC. O `traceId` do tracing distribuído é registrado separadamente; não sobrescreve o ID de correlação. Métricas Micrometer incluem JVM e tráfego HTTP. Logs estruturados ainda não estão implementados. Não registre tokens, credenciais ou payloads sensíveis.
 
-Se a latência média da API subir de 300 ms para 2,5 s enquanto CPU e memória permanecerem moderadas, eu começaria comparando p50/p95/p99 por endpoint e os tempos de banco e provedor. Verificaria traces e logs pelo `X-Correlation-Id`, consultas lentas, plano de execução, pool de conexões e latência do serviço externo. Como as medições apontam também aumento no banco e no provedor, investigaria ambos; uma chamada externa lenta aumenta o tempo total do POST, mas não mantém uma transação nem conexão de banco aberta durante a chamada. Confirmaria a hipótese com tracing, métricas do pool e testes de carga, em vez de assumir uma causa.
-
-Após a correção, compararia as mesmas métricas antes e depois, incluindo latência percentil, taxa de erros, throughput e saturação de conexões, primeiro em canário ou carga controlada. Melhorias possíveis incluem otimizar consultas comprovadamente lentas, ajustar pools/índices com evidência, melhorar a capacidade do provedor ou desacoplar a integração com Outbox e processamento assíncrono.
-
-## Pendências e evolução
-
-- Retry automático, backoff, limite de tentativas e respeito a `Retry-After`.
-- Outbox transacional e reconciliação de solicitações que permaneçam em `PROCESSING`.
-- Limites de tamanho de corpo e taxa de chamadas.
-- Testes automatizados de timeout/latência contra o cliente HTTP.
-- Testes automatizados que validem a exportação OTLP e a propagação de contexto até um backend de tracing.
-
-Em uma evolução para múltiplas instâncias, a unicidade no banco continuaria sendo a proteção contra duplicidade local. Uma Outbox permitiria publicar o trabalho após a gravação e processá-lo de forma resiliente; eventos de conclusão poderiam ser enviados a uma fila ou tópico. O pipeline de entrega validaria, testaria e construiria a imagem antes de publicá-la e implantá-la. Esses mecanismos são possibilidades futuras, não capacidades já implementadas.
 
 ## Registros de decisão
 
@@ -299,6 +286,46 @@ As decisões e seus motivos estão registrados em [`docs/adr/`](docs/adr/):
 - [ADR-0002: integração síncrona e tratamento de falhas](docs/adr/0002-integracao-sincrona-e-falhas.md)
 - [ADR-0003: JWT e autorização por escopo](docs/adr/0003-autenticacao-e-autorizacao.md)
 - [ADR-0004: isolamento de solicitações por consumidor](docs/adr/0004-isolamento-por-consumidor.md)
+
+### Cenário: aumento de latência
+
+**1. O que investigaria primeiro?** 
+Compararia a latência por endpoint e o seu tempo de resposta a requisição, e verificaria traces recentes correlacionados pelo `X-Correlation-Id`. Os números mostram aumento simultâneo no banco (50 ms para 1,2 s) e no provedor (400 ms para 3 s), então começaria por esses dois componentes, sem descartar a aplicação, principalmente observando se há locks em base.
+
+**2. Como identificaria a origem?** 
+A partir do trace e tempo da requisição entre aplicação, banco e chamada HTTP externa; cruzaria isso com métricas de latência/erros do provedor, consultas lentas e planos em base, além de métricas de pool/conexões e threads. Uma chamada externa lenta aumenta a duração do POST, mas, neste projeto, ocorre fora de uma transação de banco aberta. Confirmaria a causa comparando as medidas e reproduzindo a carga antes de alterar código ou infraestrutura.
+Provavel que as tabelas precisariam de criação de index para melhoria de transação.
+
+**3. Quais logs ou métricas seriam úteis?** 
+A depender da ferramenta que tenho a disposição , seja um DataDog ou algo do tipo , aqui implementei o jaegerUI, usaria os traces para decompor a duração de cada requisição entre a API e o banco. Nos logs usaria o traceID ou o x-correlation-id para correlacionar a requisição e o trace. Métricas de latência HTTP, pool de conexões e consultas lentas do banco ajudariam a identificar gargalos.
+
+**4. Que tipo de melhoria poderia ser considerada?** 
+Primeiro, corrigiria o gargalo confirmado pelas medições: otimizar consultas e índices se a análise do banco apontar lentidão avaliaria limites de timeout e capacidade dos pools.
+
+**5. Os três sintomas podem ter uma causa comum? Como confirmaria?**
+Poderia ser ocasionado por Infraestrutura...problema de rede, aumento de tráfego, elevando ao mesmo tempo o acesso ao banco aumentando a duração das requisições da API, confirmaria realizando teste analisando uso , observando log da aplicação.
+
+**6. Como validaria que a correção funcionou?**
+Verificando métricas e latência observabilidade do tráfego, tempo de consultas, manteria alerta e plano de rollback caso necessitasse.
+
+## Pontos pendentes e o que Melhoria como faria : 
+O projeto já implementa isolamento de solicitações pelo sub do JWT, verificações de liveness/readiness, métricas Prometheus e tracing OTLP. Também persiste as mudanças de estado em transações separadas: a chamada HTTP ao provedor ocorre fora de uma transação de banco aberta. Ainda há pontos que eu desenvolveria antes de considerar o serviço pronto para produção:
+•
+Retry e falhas temporárias: falhas como HTTP 429, 5xx e timeout sejam classificadas como temporárias, não há novas tentativas automáticas. Eu adicionaria um número máximo de tentativas, backoff exponencial com jitter e tratamento de Retry-After. Ao atingir o limite, a solicitação permaneceria em estado terminal de falha e seria encaminhada para análise ou reconciliação.
+
+Outbox e reconciliação: o fluxo ainda é síncrono e não há garantia de reenvio caso a aplicação caia após salvar a solicitação e antes de chamar o provedor. Para resolver isso, gravaria a solicitação e um evento de Outbox na mesma transação; um worker enviaria o evento ao provedor e atualizaria o estado. Também criaria um processo para localizar e reconciliar solicitações paradas em PROCESSING.
+
+Latência da API: separar a chamada HTTP da transação evita manter recursos do banco ocupados durante a espera, mas o POST ainda aguarda a resposta do provedor. Se o volume ou o tempo de resposta justificarem, usaria o processamento assíncrono com Outbox e retornaria uma resposta indicando que a solicitação foi aceita para processamento.
+
+Credencial do provedor: o WireMock local não exige autenticação, então o projeto não implementa credenciais para essa integração. Em produção, usaria uma credencial exclusiva da aplicação, armazenada e rotacionada em um secret manager, com acesso mínimo necessário e comunicação via TLS.
+
+Limites de entrada e tráfego: não estão configurados limites específicos para o tamanho do corpo HTTP nem rate limiting. Eu definiria limites compatíveis com os payloads esperados e aplicaria limitação de tráfego no API Gateway ou em um filtro apropriado, monitorando respostas 413 e 429.
+
+Testes de integração HTTP e observabilidade: os testes atuais verificam o fluxo da API com o provedor simulado por Mockito, mas não testam automaticamente timeout e propagação de traces até um backend OTLP. Eu acrescentaria testes do cliente HTTP para sucesso, erros e timeout, além de uma verificação automatizada da instrumentação. O tracing e as métricas já estão disponíveis localmente; faltam esses testes automatizados e definir retenção, alertas e controle de acesso adequados para produção.
+
+Identidade de produção: a validação local usa HS256 e uma chave de desenvolvimento. Em produção, integraria com um IdP usando OAuth 2.0 Client Credentials, assinatura assimétrica e chaves públicas via JWKS. A chave local não deve ser reutilizada. Para múltiplos emissores, também incluiria o issuer na identificação do proprietário das solicitações.
+
+
 
 ## Uso de IA
 
