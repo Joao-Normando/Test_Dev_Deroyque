@@ -211,11 +211,12 @@ O `externalId` tem uma restrição `UNIQUE` no PostgreSQL. A consulta prévia ev
 - Requisições simultâneas iguais: a restrição de unicidade permite um único registro e o serviço retorna o registro já existente para as demais.
 
 
-### Segurança
+### 7. Segurança
 
-A aplicação atua como OAuth 2.0 Resource Server e valida JWT HS256, assinatura, emissor, audiência, validade temporal e presença do `sub`. O `sub` identifica o consumidor e é obtido exclusivamente do token validado, nunca do corpo ou de um parâmetro enviado pelo cliente. Cada solicitação é persistida com esse proprietário; buscas por UUID e listagens sempre filtram pelo proprietário. Assim, um UUID de outro consumidor responde `404`, como se não existisse. `externalId` continua globalmente único; uma tentativa incompatível responde conflito sem retornar dados de outro consumidor.
+A aplicação atua como OAuth 2.0 Resource Server e valida JWT HS256, assinatura, emissor, audiência, validade temporal e presença do 'sub'. O 'sub' identifica o consumidor e é obtido exclusivamente do token validado, nunca do corpo ou de um parâmetro enviado pelo cliente. Cada solicitação é persistida com esse proprietário; buscas por UUID e listagens sempre filtram pelo proprietário. Assim, um UUID de outro consumidor responde `404`, como se não existisse. `externalId` continua globalmente único; uma tentativa incompatível responde conflito sem retornar dados de outro consumidor.
+O claim 'scope' é convertido para authorities 'SCOPE_...': 'requests:write' permite criação, 'requests:read' permite consulta e 'metrics:read' permite scrape de Prometheus. Health, liveness e readiness são públicos para permitir que o orquestrador verifique a aplicação; o endpoint de métricas exige autenticação. Swagger UI e documentos OpenAPI também são públicos. Não há servidor de identidade nem endpoint de emissão de token. Em produção, usaria OAuth 2.0 Client Credentials com um provedor de identidade, chaves assimétricas/JWKS e segredos de integração em um secret manager com rotação. 
+Veja [ADR-0003](docs/adr/0003-autenticacao-e-autorizacao.md) e [ADR-0004](docs/adr/0004-isolamento-por-consumidor.md).
 
-O claim `scope` é convertido para authorities `SCOPE_...`: `requests:write` permite criação, `requests:read` permite consulta e `metrics:read` permite scrape de Prometheus. Health, liveness e readiness são públicos para permitir que o orquestrador verifique a aplicação; o endpoint de métricas exige autenticação. Swagger UI e documentos OpenAPI também são públicos. Não há servidor de identidade nem endpoint de emissão de token. Em produção, usaria OAuth 2.0 Client Credentials com um provedor de identidade, chaves assimétricas/JWKS e segredos de integração em um secret manager com rotação. Veja [ADR-0003](docs/adr/0003-autenticacao-e-autorizacao.md) e [ADR-0004](docs/adr/0004-isolamento-por-consumidor.md).
 
 ## Banco e índices
 
@@ -287,7 +288,7 @@ As decisões e seus motivos estão registrados em [`docs/adr/`](docs/adr/):
 - [ADR-0003: JWT e autorização por escopo](docs/adr/0003-autenticacao-e-autorizacao.md)
 - [ADR-0004: isolamento de solicitações por consumidor](docs/adr/0004-isolamento-por-consumidor.md)
 
-### Cenário: aumento de latência
+### 10. Cenário de análise obrigatório
 
 **1. O que investigaria primeiro?** 
 Compararia a latência por endpoint e o seu tempo de resposta a requisição, e verificaria traces recentes correlacionados pelo `X-Correlation-Id`. Os números mostram aumento simultâneo no banco (50 ms para 1,2 s) e no provedor (400 ms para 3 s), então começaria por esses dois componentes, sem descartar a aplicação, principalmente observando se há locks em base.
