@@ -73,16 +73,9 @@ Todos os endpoints de negócio exigem JWT. Em um segundo terminal PowerShell, na
 Se o PowerShell bloquear scripts neste terminal, permita scripts locais apenas na sessão atual e tente novamente:
 
 
-Essa configuração termina ao fechar o terminal; não altera a política permanente do computador. Em um computador gerenciado, siga a política da organização.
-
 Também é possível usar a API pelo Swagger UI: abra `http://localhost:8080/swagger-ui/index.html`, clique em **Authorize** e cole o token sem o prefixo `Bearer`.
 
 Para simular consumidores diferentes e testar o isolamento, gere tokens com sujeitos distintos:
-
-```powershell
-$tokenA = & .\scripts\New-DevelopmentJwt.ps1 -Subject "consumer-a"
-$tokenB = & .\scripts\New-DevelopmentJwt.ps1 -Subject "consumer-b"
-```
 
 ### Criar uma solicitação e conferir o WireMock
 

@@ -4,7 +4,8 @@ import br.com.example.activation.domain.*;
 import br.com.example.activation.integration.*;
 import br.com.example.activation.persistence.ActivationRequestRepository;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,87 +13,93 @@ import java.util.UUID;
 
 @Service
 public class ActivationRequestService {
-    private final ActivationRequestRepository repo;
-    private final ProviderActivationClient provider;
+    private final ActivationRequestRepository repository;
+    private final ProviderActivationClient providerClient;
     private final ActivationRequestStateService stateService;
 
     public ActivationRequestService(
-            ActivationRequestRepository r,
-            ProviderActivationClient p,
+            ActivationRequestRepository repository,
+            ProviderActivationClient providerClient,
             ActivationRequestStateService stateService) {
-        repo = r;
-        provider = p;
+        this.repository = repository;
+        this.providerClient = providerClient;
         this.stateService = stateService;
     }
 
     public ActivationRequest create(
             String externalId, String customerId, String productCode, String ownerSubject) {
-        var old = repo.findByExternalId(externalId);
-        if (old.isPresent()) {
-            return same(old.get(), customerId, productCode, ownerSubject) ? old.get() : conflict();
+        var existingRequest = repository.findByExternalId(externalId);
+        if (existingRequest.isPresent()) {
+            return returnExistingRequestOrThrowConflict(
+                    existingRequest.get(), customerId, productCode, ownerSubject);
         }
 
-        ActivationRequest saved;
+        ActivationRequest newRequest;
         try {
-            saved = repo.saveAndFlush(
+            newRequest = repository.saveAndFlush(
                     ActivationRequest.create(externalId, customerId, productCode, ownerSubject));
-        } catch (DataIntegrityViolationException e) {
-            var concurrent = repo.findByExternalId(externalId);
-            if (concurrent.isPresent()
-                    && same(concurrent.get(), customerId, productCode, ownerSubject)) {
-                return concurrent.get();
+        } catch (DataIntegrityViolationException exception) {
+            var concurrentRequest = repository.findByExternalId(externalId);
+            if (concurrentRequest.isEmpty()) {
+                throw exception;
             }
-            if (concurrent.isPresent()) {
-                return conflict();
-            }
-            throw e;
+            return returnExistingRequestOrThrowConflict(
+                    concurrentRequest.get(), customerId, productCode, ownerSubject);
         }
 
-        return activate(saved.getId());
+        return activateRequest(newRequest.getId());
     }
 
-    private ActivationRequest activate(UUID id) {
-        var request = stateService.markProcessing(id);
+    private ActivationRequest activateRequest(UUID requestId) {
+        var request = stateService.markProcessing(requestId);
         try {
-            provider.activate(
+            providerClient.activate(
                     request.getExternalId(), request.getCustomerId(), request.getProductCode());
-            return stateService.markCompleted(id);
+            return stateService.markCompleted(requestId);
         } catch (ProviderActivationException e) {
-            return stateService.markFailed(id);
+            return stateService.markFailed(requestId);
         }
     }
 
     @Transactional(readOnly = true)
-    public ActivationRequest get(UUID id, String ownerSubject) {
-        return repo.findByIdAndOwnerSubject(id, ownerSubject)
-                .orElseThrow(() -> new ActivationRequestNotFoundException(id));
+    public ActivationRequest get(UUID requestId, String ownerSubject) {
+        return repository.findByIdAndOwnerSubject(requestId, ownerSubject)
+                .orElseThrow(() -> new ActivationRequestNotFoundException(requestId));
     }
 
     @Transactional(readOnly = true)
     public Page<ActivationRequest> list(
             String ownerSubject, ActivationStatus status, String customerId, Pageable pageable) {
         if (status != null && customerId != null) {
-            return repo.findByOwnerSubjectAndStatusAndCustomerId(
+            return repository.findByOwnerSubjectAndStatusAndCustomerId(
                     ownerSubject, status, customerId, pageable);
         }
         if (status != null) {
-            return repo.findByOwnerSubjectAndStatus(ownerSubject, status, pageable);
+            return repository.findByOwnerSubjectAndStatus(ownerSubject, status, pageable);
         }
         if (customerId != null) {
-            return repo.findByOwnerSubjectAndCustomerId(ownerSubject, customerId, pageable);
+            return repository.findByOwnerSubjectAndCustomerId(ownerSubject, customerId, pageable);
         }
-        return repo.findByOwnerSubject(ownerSubject, pageable);
+        return repository.findByOwnerSubject(ownerSubject, pageable);
     }
 
-    private boolean same(
+    private ActivationRequest returnExistingRequestOrThrowConflict(
+            ActivationRequest existingRequest,
+            String customerId,
+            String productCode,
+            String ownerSubject) {
+        if (isSameRequest(existingRequest, customerId, productCode, ownerSubject)) {
+            return existingRequest;
+        }
+        throw new DuplicateExternalIdException(
+                "externalId já utilizado por uma solicitação incompatível.");
+    }
+
+    private boolean isSameRequest(
             ActivationRequest request, String customerId, String productCode, String ownerSubject) {
         return request.getOwnerSubject().equals(ownerSubject)
                 && request.getCustomerId().equals(customerId)
                 && request.getProductCode().equals(productCode);
     }
 
-    private ActivationRequest conflict() {
-        throw new DuplicateExternalIdException(
-                "externalId já utilizado por uma solicitação incompatível.");
-    }
 }

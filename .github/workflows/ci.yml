@@ -3,6 +3,24 @@ on: [push, pull_request]
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: activation
+          POSTGRES_USER: activation
+          POSTGRES_PASSWORD: activation
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U activation -d activation"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      TEST_POSTGRES_URL: jdbc:postgresql://localhost:5432/activation
+      TEST_POSTGRES_USERNAME: activation
+      TEST_POSTGRES_PASSWORD: activation
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
