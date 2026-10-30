@@ -18,13 +18,9 @@ public class ActivationRequestStateService {
 
     @Transactional
     public ActivationRequest changeStatus(UUID id, ActivationStatus status) {
-        var request = findById(id);
+        var request = repository.findById(id)
+                .orElseThrow(() -> new ActivationRequestNotFoundException(id));
         request.changeStatusTo(status);
         return repository.saveAndFlush(request);
-    }
-
-    private ActivationRequest findById(UUID id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new ActivationRequestNotFoundException(id));
     }
 }

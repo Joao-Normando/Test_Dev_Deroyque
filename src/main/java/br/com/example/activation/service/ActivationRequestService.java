@@ -70,17 +70,8 @@ public class ActivationRequestService {
     @Transactional(readOnly = true)
     public Page<ActivationRequest> list(
             String ownerSubject, ActivationStatus status, String customerId, Pageable pageable) {
-        if (status != null && customerId != null) {
-            return repository.findByOwnerSubjectAndStatusAndCustomerId(
-                    ownerSubject, status, customerId, pageable);
-        }
-        if (status != null) {
-            return repository.findByOwnerSubjectAndStatus(ownerSubject, status, pageable);
-        }
-        if (customerId != null) {
-            return repository.findByOwnerSubjectAndCustomerId(ownerSubject, customerId, pageable);
-        }
-        return repository.findByOwnerSubject(ownerSubject, pageable);
+        return repository.findByOwnerSubjectAndOptionalFilters(
+                ownerSubject, status, customerId, pageable);
     }
 
     private ActivationRequest returnExistingRequestOrThrowConflict(
